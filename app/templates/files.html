@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "partials/_icons.html" as icon %}
+
+{% block title %}Mes fichiers{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/files.css') }}">
+{% endblock %}
+
+{% block content %}
+{# data-base-url : racine du service (préfixe inclus), utilisée par files.js pour construire ses appels #}
+<div class="files-page" data-base-url="{{ url_for('files.index') }}" data-max-bytes="{{ max_upload_mb * 1048576 }}">
+
+  <header class="files-header">
+    <div class="files-header__inner">
+      <div>
+        <p class="files-header__label">Espace personnel</p>
+        <h1 class="files-header__title">Mes fichiers</h1>
+      </div>
+      <label class="btn-upload" for="file-input" title="Taille maximale : {{ max_upload_mb }} Mo">
+        {{ icon.upload(16) }}
+        Uploader un fichier
+      </label>
+      <input type="file" id="file-input" hidden>
+    </div>
+  </header>
+
+  {% include "partials/_my_files.html" %}
+  {% include "partials/_shared_files.html" %}
+
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/files.js') }}" defer></script>
+{% endblock %}

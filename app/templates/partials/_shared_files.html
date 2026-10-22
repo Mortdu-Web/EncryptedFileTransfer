@@ -1,0 +1,37 @@
+{% import "partials/_icons.html" as icon %}
+<section class="files-section">
+  <div class="section-title">
+    <span class="section-title__dot section-title__dot--gold"></span>
+    <h2>Partagés avec moi</h2>
+    <span class="section-title__count">{{ shared_files | length }}</span>
+  </div>
+
+  {% if shared_files %}
+  <div class="shared-list">
+    {% for file in shared_files %}
+    <div class="shared-row">
+      <div class="shared-row__icon">{{ icon.file(20) }}</div>
+      <div class="shared-row__info">
+        <p class="shared-row__name" title="{{ file.file_name }}">{{ file.file_name }}</p>
+        <p class="shared-row__meta">
+          Partagé par <strong>{{ file.shared_by }}</strong>
+          · Le {{ file.shared_at.strftime('%d/%m/%Y') }}
+          · {{ file.size_bytes | filesize }}
+        </p>
+      </div>
+      <div class="shared-row__actions">
+        <a class="btn-download" href="{{ url_for('files.download', file_id=file.id) }}" download>
+          {{ icon.download(14) }}
+          Télécharger
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state__icon">{{ icon.inbox(40) }}</div>
+    <p>Aucun fichier partagé avec vous pour l'instant.</p>
+  </div>
+  {% endif %}
+</section>

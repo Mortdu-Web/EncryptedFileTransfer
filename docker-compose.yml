@@ -1,0 +1,26 @@
+services:
+  file-transfer:
+    build:
+      context: .
+      args:
+        # true en production (AUTH_ENABLED=true) pour installer auth-client
+        WITH_AUTH: ${WITH_AUTH:-false}
+    container_name: file-transfer
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+    volumes:
+      # Fichiers chiffrés (persistants). Sauvegarder ce volume ET la clé ENCRYPTION_KEY.
+      - uploads:/data/uploads
+    networks:
+      - web
+
+volumes:
+  uploads:
+
+networks:
+  # Réseau partagé avec le reverse proxy et le service d'auth.
+  # À créer une fois : docker network create web
+  web:
+    external: true

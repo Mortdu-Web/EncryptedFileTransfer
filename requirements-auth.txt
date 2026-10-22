@@ -1,0 +1,3 @@
+# À installer uniquement si AUTH_ENABLED=true (production)
+-r requirements.txt
+auth-client @ git+https://github.com/Mortdu-web/auth.git@v0.1.0#subdirectory=client

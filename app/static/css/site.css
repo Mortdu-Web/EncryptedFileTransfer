@@ -1,0 +1,18 @@
+/* Tokens et éléments communs (mêmes variables que le hub de jeux). files.css les utilise. */
+:root {
+  --bg: #f7f3ec;
+  --surface: #ffffff;
+  --line: #e3dccf;
+  --muted: #7a7066;
+  --accent: #2b2118;
+  --gold: #b8893b;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--accent); font: 16px/1.6 "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--gold); }
+input, select, button { font: inherit; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--surface); border-bottom: 1px solid var(--line); padding: .85rem 1.5rem; }
+.brand { font-family: "Cormorant Garamond", serif; font-size: 1.3rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+.topbar__user { font-size: .85rem; color: var(--muted); }

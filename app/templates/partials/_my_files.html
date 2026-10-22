@@ -1,0 +1,62 @@
+{% import "partials/_icons.html" as icon %}
+<section class="files-section">
+  <div class="section-title">
+    <span class="section-title__dot"></span>
+    <h2>Mes uploads</h2>
+    <span class="section-title__count">{{ my_files | length }}</span>
+  </div>
+
+  {% if my_files %}
+  <div class="files-grid">
+    {% for file in my_files %}
+    <article class="file-card" data-id="{{ file.id }}">
+      <div class="file-card__top">
+        <div class="file-card__icon">{{ icon.file(20) }}</div>
+        <div class="file-card__meta">
+          <p class="file-card__name" title="{{ file.file_name }}">{{ file.file_name }}</p>
+          <p class="file-card__size">{{ file.uploaded_at.strftime('%d/%m/%Y') }} · {{ file.size_bytes | filesize }}</p>
+        </div>
+        <button type="button" class="file-card__delete" data-action="delete" data-file-id="{{ file.id }}" title="Supprimer" aria-label="Supprimer {{ file.file_name }}">
+          {{ icon.trash(14) }}
+        </button>
+      </div>
+
+      <div class="file-card__share">
+        <p class="file-card__share-label">Partager avec</p>
+        <div class="share-dropdown">
+          <button type="button" class="share-dropdown__toggle" data-action="toggle-dropdown" data-file-id="{{ file.id }}" aria-expanded="false">
+            <span class="share-dropdown__preview" id="preview-{{ file.id }}">
+              {% if file.shared_with_ids %}{{ file.shared_with_ids | length }} utilisateur(s){% else %}Sélectionner…{% endif %}
+            </span>
+            {{ icon.chevron(12, "share-dropdown__arrow") }}
+          </button>
+          <div class="share-dropdown__menu" id="menu-{{ file.id }}">
+            {% for user in all_users %}
+            <label class="share-option">
+              <input
+                type="checkbox"
+                class="share-option__check"
+                data-file-id="{{ file.id }}"
+                data-user-id="{{ user.id }}"
+                {% if user.id in file.shared_with_ids %}checked{% endif %}
+              >
+              <span class="share-option__avatar">{{ user.label[0] | upper }}</span>
+              <span class="share-option__name">{{ user.label }}</span>
+              {{ icon.check(12, "share-option__check-icon") }}
+            </label>
+            {% else %}
+            <p class="share-empty">Aucun autre utilisateur.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state__icon">{{ icon.file(40) }}</div>
+    <p>Vous n'avez encore uploadé aucun fichier.</p>
+  </div>
+  {% endif %}
+</section>
