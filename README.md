@@ -28,7 +28,7 @@ app/
   config.py              lecture du .env
   helpers.py             require_auth (auth_client si AUTH_ENABLED) + filtre « taille lisible »
   crypto.py              chiffrement/déchiffrement AES-256-GCM (seul fichier à adapter pour changer d'algorithme)
-  db.py                  PostgreSQL : utilisateurs, fichiers, partages (seul fichier à adapter pour une autre base)
+  db.py                  PostgreSQL : pool de connexions + utilisateurs, fichiers, partages (seul fichier à adapter pour une autre base)
   schema.sql             création des tables ft_* (lu par db.py, utilisable à la main avec psql)
   users.py               utilisateur courant (g.user) + annuaire Keycloak pour « Partager avec »
   fileservice.py         logique métier : upload / download / delete (droits + chiffrement + disque + base)
@@ -59,6 +59,12 @@ dans `routes.py`.
 Tables dans la base PostgreSQL distante (préfixe `ft_` : aucun conflit si la base est partagée avec `game-hub`) :
 `ft_users`, `ft_files`, `ft_file_shares`. Elles doivent exister : `DB_AUTO_CREATE=true` les crée au démarrage
 (droit CREATE requis), ou bien lancer une fois `psql -h <hote> -U <user> -d <base> -f app/schema.sql`.
+
+Au démarrage, l'application vérifie la connexion et la présence des tables : en cas de problème (hôte injoignable,
+mauvais mot de passe, tables absentes, droit CREATE manquant) elle s'arrête avec un message explicite, au lieu de
+renvoyer une erreur 500 à la première requête. Les connexions viennent d'un pool (`DB_POOL_MIN` / `DB_POOL_MAX`, par
+worker gunicorn) ; ne pas lancer gunicorn avec `--preload`. Base coupée en cours de route : les requêtes reçoivent un
+503, puis tout repart seul au retour de la base.
 
 Les utilisateurs sont ceux de Keycloak (`GET /api/users` du service d'auth) et sont recopiés dans `ft_users`.
 Si le service d'auth est injoignable, le menu « Partager avec » se limite aux utilisateurs déjà connus en base.
