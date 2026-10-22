@@ -12,7 +12,7 @@ d'une operation, puis rendue) :
     puis retour au pool dans tous les cas ;
   - une connexion coupee cote reseau est detectee et remplacee avant usage ;
   - le demarrage echoue immediatement, avec un message clair, si la base est injoignable ou si la
-    migration schema.sql n'a pas ete appliquee.
+    migration schema.sql n'a pas ete appliquee ou si l'utilisateur de la base n'a pas les droits necessaires.
 """
 import atexit
 from contextlib import contextmanager
@@ -75,27 +75,53 @@ def init_app(app) -> None:
 
 
 def _check_schema(pool: ConnectionPool) -> None:
-    """Verifie que les tables du hub existent et que la migration schema.sql a ete appliquee."""
-    problems = []
+    """Verifie les tables du hub, la migration schema.sql et les droits de l'utilisateur de l'application."""
+    migration, rights = [], []
     with pool.connection() as conn:
+        def one(sql, params=()):
+            return conn.execute(sql, params).fetchone()["v"]
+
         for table in ("users", "files", "file_shares"):
-            if conn.execute("SELECT to_regclass(%s) AS found", (table,)).fetchone()["found"] is None:
-                problems.append(f"table « {table} » introuvable")
-        if not problems:
-            if not conn.execute(
-                """SELECT 1 FROM information_schema.columns
-                   WHERE table_schema = current_schema() AND table_name = 'files' AND column_name = 'size_bytes'"""
-            ).fetchone():
-                problems.append("colonne files.size_bytes absente")
-            if not conn.execute(
-                "SELECT 1 FROM pg_constraint WHERE conname = 'file_shares_file_user_key'"
-            ).fetchone():
-                problems.append("contrainte file_shares_file_user_key absente")
-    if problems:
-        raise RuntimeError(
-            f"[DB] Base non prête : {' ; '.join(problems)}. Appliquer la migration une fois, avec le propriétaire "
-            "des tables : `sudo -u postgres psql -d <base> -f schema.sql`."
+            if one("SELECT to_regclass(%s) IS NOT NULL AS v", (table,)) is False:
+                migration.append(f"table « {table} » introuvable")
+        if not migration:
+            # pg_attribute / pg_constraint (et non information_schema, qui masque ce que l'utilisateur n'a pas le droit de voir)
+            if not one(
+                """SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('files')
+                                  AND attname = 'size_bytes' AND NOT attisdropped) AS v"""
+            ):
+                migration.append("colonne files.size_bytes absente")
+            if not one(
+                """SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('file_shares')
+                                  AND conname = 'file_shares_file_user_key') AS v"""
+            ):
+                migration.append("contrainte file_shares_file_user_key absente")
+
+            user = one("SELECT current_user AS v")
+            for table, privs in (("users", ("SELECT",)), ("files", ("SELECT", "INSERT", "DELETE")),
+                                 ("file_shares", ("SELECT", "INSERT", "DELETE"))):
+                for priv in privs:
+                    if not one("SELECT has_table_privilege(%s, %s) AS v", (table, priv)):
+                        rights.append(f"{priv} sur {table}")
+            for table in ("files", "file_shares"):
+                if one("SELECT has_sequence_privilege(pg_get_serial_sequence(%s, 'id'), 'USAGE') AS v", (table,)) is False:
+                    rights.append(f"USAGE sur la séquence de {table}")
+
+    errors = []
+    if migration:
+        errors.append(
+            f"migration non appliquée ({' ; '.join(migration)}). Lancer une fois, avec le propriétaire des tables : "
+            "`sudo -u postgres psql -d <base> -f schema.sql`"
         )
+    if rights:
+        errors.append(
+            f"droits manquants pour l'utilisateur « {user} » ({' ; '.join(rights)}). Lancer, en tant que postgres : "
+            f"GRANT SELECT ON users TO {user}; "
+            f"GRANT SELECT, INSERT, UPDATE, DELETE ON files, file_shares TO {user}; "
+            f"GRANT USAGE, SELECT ON SEQUENCE files_id_seq, file_shares_id_seq TO {user};"
+        )
+    if errors:
+        raise RuntimeError("[DB] Base non prête : " + " || ".join(errors))
 
 
 @contextmanager
