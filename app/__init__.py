@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask, jsonify
+from psycopg import OperationalError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import crypto, db
@@ -27,5 +28,10 @@ def create_app() -> Flask:
     @app.errorhandler(413)
     def too_large(_exc):
         return jsonify({"error": f"Fichier trop volumineux (maximum {Config.MAX_UPLOAD_MB} Mo)."}), 413
+
+    @app.errorhandler(OperationalError)  # base injoignable, connexion coupee, pool sature (PoolTimeout en derive)
+    def db_unavailable(_exc):
+        app.logger.exception("Base de donnees indisponible")
+        return jsonify({"error": "Base de données momentanément indisponible, réessayez dans un instant."}), 503
 
     return app

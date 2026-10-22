@@ -7,12 +7,12 @@ auth via `auth_client`, base PostgreSQL distante).
 ## Lancer en local (sans authentification)
 ```bash
 pip install -r requirements.txt      # sans auth-client
-cp .env.example .env                 # renseigner ENCRYPTION_KEY et DB_* ; AUTH_ENABLED=false, URL_PREFIX= (vide)
+cp .env.example .env                 # renseigner ENCRYPTION_KEY, DB_* et DEV_USERNAME ; AUTH_ENABLED=false, URL_PREFIX= (vide)
 flask --app wsgi run --debug --port 5000
 ```
 Accueil : `http://localhost:5000/` (ou `http://localhost:5000<URL_PREFIX>/` si un préfixe est défini).
-Sans auth, tout le monde est l'utilisateur `DEV_USERNAME` ; pour tester un partage, relancer avec un autre `DEV_USER_ID`
-/ `DEV_USERNAME` (les utilisateurs déjà passés par la page apparaissent dans « Partager avec »).
+Sans auth, tout le monde est l'utilisateur `DEV_USERNAME`, qui doit exister dans la table `users` ; pour tester un
+partage, relancer avec un autre `DEV_USERNAME`.
 
 ## Production (avec authentification)
 ```bash
@@ -29,8 +29,8 @@ app/
   helpers.py             require_auth (auth_client si AUTH_ENABLED) + filtre « taille lisible »
   crypto.py              chiffrement/déchiffrement AES-256-GCM (seul fichier à adapter pour changer d'algorithme)
   db.py                  PostgreSQL : pool de connexions + utilisateurs, fichiers, partages (seul fichier à adapter pour une autre base)
-  schema.sql             création des tables ft_* (lu par db.py, utilisable à la main avec psql)
-  users.py               utilisateur courant (g.user) + annuaire Keycloak pour « Partager avec »
+  schema.sql             migration des tables existantes (files.size_bytes, unicité des partages, index), à lancer une fois
+  users.py               utilisateur courant : nom d'utilisateur (Keycloak ou DEV_USERNAME) relié à la table users
   fileservice.py         logique métier : upload / download / delete (droits + chiffrement + disque + base)
   routes.py              blueprint « files » : page, /upload, /download/<id>, /share, DELETE /<id>
   templates/             base.html, files.html, partials/ (_my_files, _shared_files, _icons)
@@ -56,22 +56,29 @@ dans `routes.py`.
 - Sur le disque, les fichiers sont nommés `<uuid>.enc` (sans l'extension d'origine). Le nom d'origine n'est qu'en base.
 
 ## Données
-Tables dans la base PostgreSQL distante (préfixe `ft_` : aucun conflit si la base est partagée avec `game-hub`) :
-`ft_users`, `ft_files`, `ft_file_shares`. Elles doivent exister : `DB_AUTO_CREATE=true` les crée au démarrage
-(droit CREATE requis), ou bien lancer une fois `psql -h <hote> -U <user> -d <base> -f app/schema.sql`.
+Le service utilise les tables du hub, dans la base PostgreSQL distante : `users` (lecture seule : ce service ne crée
+ni ne modifie aucun compte), `files` et `file_shares`. Les identifiants sont les `users.id` (entiers).
 
-Au démarrage, l'application vérifie la connexion et la présence des tables : en cas de problème (hôte injoignable,
-mauvais mot de passe, tables absentes, droit CREATE manquant) elle s'arrête avec un message explicite, au lieu de
-renvoyer une erreur 500 à la première requête. Les connexions viennent d'un pool (`DB_POOL_MIN` / `DB_POOL_MAX`, par
-worker gunicorn) ; ne pas lancer gunicorn avec `--preload`. Base coupée en cours de route : les requêtes reçoivent un
-503, puis tout repart seul au retour de la base.
+**Migration, une seule fois**, avec le propriétaire des tables (l'utilisateur de l'application n'a pas besoin de ce droit) :
+```bash
+sudo -u postgres psql -d <base> -f schema.sql
+```
+Elle ajoute `files.size_bytes`, une contrainte d'unicité sur `file_shares (file_id, shared_with_user_id)` et deux index ;
+elle peut être relancée sans risque. L'utilisateur de l'application doit avoir : `SELECT` sur `users`,
+`SELECT/INSERT/UPDATE/DELETE` sur `files` et `file_shares`, et `USAGE, SELECT` sur les séquences `files_id_seq` et
+`file_shares_id_seq`.
 
-Les utilisateurs sont ceux de Keycloak (`GET /api/users` du service d'auth) et sont recopiés dans `ft_users`.
-Si le service d'auth est injoignable, le menu « Partager avec » se limite aux utilisateurs déjà connus en base.
+L'authentification (Keycloak) fournit un nom d'utilisateur, relié à `users.username` : **un compte absent de la table
+`users` reçoit une erreur 403.** La liste « Partager avec » est la table `users`.
+
+Au démarrage, l'application vérifie la connexion, les tables et la migration : en cas de problème elle s'arrête avec un
+message explicite, au lieu de renvoyer une erreur 500 à la première requête. Les connexions viennent d'un pool
+(`DB_POOL_MIN` / `DB_POOL_MAX`, par worker gunicorn) ; ne pas lancer gunicorn avec `--preload`. Base coupée en cours de
+route : les requêtes reçoivent un 503, puis tout repart seul au retour de la base.
 
 ## Docker
 ```bash
-cp .env.example .env                 # renseigner PORT, SECRET_KEY, ENCRYPTION_KEY et DB_*
+cp .env.example .env                 # renseigner PORT, SECRET_KEY, ENCRYPTION_KEY et DB_* (migration faite avant)
 docker network create web            # une seule fois (réseau partagé avec le reverse proxy / l'auth)
 docker compose up -d --build
 ```

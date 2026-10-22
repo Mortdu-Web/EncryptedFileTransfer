@@ -29,8 +29,6 @@ class Config:
     # Pool de connexions (un pool par worker gunicorn) : connexions gardees ouvertes / maximum simultane.
     DB_POOL_MIN = int(os.getenv("DB_POOL_MIN") or 1)
     DB_POOL_MAX = int(os.getenv("DB_POOL_MAX") or 5)
-    # true = cree les tables au demarrage (exige le droit CREATE sur le schema public)
-    DB_AUTO_CREATE = _bool("DB_AUTO_CREATE", False)
 
     # Stockage et chiffrement des fichiers.
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
@@ -43,8 +41,7 @@ class Config:
     AUTH_ENABLED = _bool("AUTH_ENABLED", False)
     AUTH_INTERNAL_URL = os.getenv("AUTH_INTERNAL_URL", "")
     AUTH_PUBLIC_URL = os.getenv("AUTH_PUBLIC_URL", "")
-    # Identité utilisée quand l'auth est désactivée (dev local).
-    DEV_USER_ID = os.getenv("DEV_USER_ID", "dev-user")
+    # Identité utilisée quand l'auth est désactivée (dev local) : doit exister dans la table users.
     DEV_USERNAME = os.getenv("DEV_USERNAME", "dev")
 
     SESSION_COOKIE_NAME = "site_session"

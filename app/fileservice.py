@@ -3,6 +3,8 @@ import io
 import os
 import uuid
 
+from flask import current_app
+
 from . import db
 from .config import Config
 from .crypto import decrypt_file, encrypt_file
@@ -20,7 +22,7 @@ def _clean_name(raw: str | None) -> str:
 
 class FileService:
     @staticmethod
-    def upload(file, owner_id: str) -> int:
+    def upload(file, owner_id: int) -> int:
         """Chiffre, stocke sur disque, enregistre en base. Lève ValueError si le fichier est inacceptable."""
         name = _clean_name(file.filename)
         if not name:
@@ -43,7 +45,7 @@ class FileService:
             raise
 
     @staticmethod
-    def download(file_id: int, user_id: str) -> tuple[io.BytesIO, dict]:
+    def download(file_id: int, user_id: int) -> tuple[io.BytesIO, dict]:
         """Vérifie les droits, déchiffre. Lève FileNotFoundError, PermissionError ou DecryptionError."""
         file = db.get_file(file_id)
         if not file:
@@ -53,13 +55,16 @@ class FileService:
         return decrypt_file(_path(file["stored_filename"])), file
 
     @staticmethod
-    def delete(file_id: int, user_id: str) -> None:
-        """Vérifie que l'utilisateur est propriétaire, supprime disque + base."""
-        file = db.get_file(file_id)
-        if not file or file["owner_id"] != user_id:
+    def delete(file_id: int, user_id: int) -> None:
+        """Supprime en base (seulement si l'utilisateur est propriétaire), puis le fichier sur disque."""
+        # Base d'abord : si elle échoue, rien n'a changé. L'inverse laisserait une ligne pointant vers un fichier disparu.
+        stored_filename = db.delete_file(file_id, user_id)
+        if stored_filename is None:
             raise PermissionError()
 
-        path = _path(file["stored_filename"])
-        if os.path.isfile(path):
-            os.remove(path)
-        db.delete_file(file_id)
+        path = _path(stored_filename)
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+        except OSError:  # la ligne est deja supprimee : on garde la trace sans faire echouer la requete
+            current_app.logger.exception("Fichier chiffré non supprimé du disque : %s", path)

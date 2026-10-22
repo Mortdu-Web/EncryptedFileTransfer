@@ -68,8 +68,9 @@ def share():
         file_id = int(data.get("file_id"))
     except (TypeError, ValueError):
         return jsonify({"error": "Fichier invalide"}), 400
-    target_id = data.get("user_id")
-    if not isinstance(target_id, str) or not target_id:
+    try:
+        target_id = int(data.get("user_id"))
+    except (TypeError, ValueError):
         return jsonify({"error": "Utilisateur invalide"}), 400
     add = bool(data.get("add", True))
 
@@ -82,7 +83,7 @@ def share():
 
     if add:
         try:
-            db.add_share(file_id, target_id)
+            db.add_share(file_id, me["id"], target_id)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"message": "Partagé ✓"})

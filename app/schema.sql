@@ -1,29 +1,30 @@
--- Tables du service de transfert de fichiers (préfixe ft_ : pas de conflit avec les autres services
--- si la base est partagée). Exécuté au démarrage si DB_AUTO_CREATE=true, ou à la main :
---   psql -h <hote> -U <user> -d <base> -f app/schema.sql
-SELECT pg_advisory_xact_lock(727002);  -- evite les courses entre workers gunicorn au demarrage
+-- Migration des tables EXISTANTES (users, files, file_shares) pour le service de transfert de fichiers.
+-- Aucune table n'est creee : on complete celles du hub. A lancer UNE fois, avec le proprietaire des tables
+-- (postgres) -- l'utilisateur de l'application n'a pas besoin de ce droit :
+--   sudo -u postgres psql -d <base> -f schema.sql
+-- Le script peut etre relance sans risque.
 
--- Utilisateurs connus du service (copie de l'annuaire Keycloak, mise à jour à chaque visite).
-CREATE TABLE IF NOT EXISTS ft_users (
-    keycloak_id  TEXT PRIMARY KEY,
-    username     TEXT NOT NULL,
-    display_name TEXT NOT NULL DEFAULT ''
-);
+BEGIN;
 
-CREATE TABLE IF NOT EXISTS ft_files (
-    id              SERIAL PRIMARY KEY,
-    owner_id        TEXT NOT NULL REFERENCES ft_users(keycloak_id) ON DELETE CASCADE,
-    file_name       TEXT NOT NULL,                 -- nom d'origine, affiché et utilisé au téléchargement
-    stored_filename TEXT NOT NULL UNIQUE,          -- nom aléatoire sur disque (<uuid>.enc)
-    size_bytes      BIGINT NOT NULL DEFAULT 0,
-    uploaded_at     TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS ft_files_owner_idx ON ft_files (owner_id);
+-- Taille du fichier (en clair), affichee dans l'interface.
+ALTER TABLE files ADD COLUMN IF NOT EXISTS size_bytes BIGINT NOT NULL DEFAULT 0;
 
-CREATE TABLE IF NOT EXISTS ft_file_shares (
-    file_id        INTEGER NOT NULL REFERENCES ft_files(id) ON DELETE CASCADE,
-    shared_with_id TEXT NOT NULL REFERENCES ft_users(keycloak_id) ON DELETE CASCADE,
-    shared_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (file_id, shared_with_id)
-);
-CREATE INDEX IF NOT EXISTS ft_file_shares_user_idx ON ft_file_shares (shared_with_id);
+-- Un fichier ne peut etre partage qu'une fois avec un meme utilisateur (sans cette contrainte,
+-- "INSERT ... ON CONFLICT DO NOTHING" ne protege de rien et les doublons s'accumulent).
+DELETE FROM file_shares a
+      USING file_shares b
+      WHERE a.id > b.id AND a.file_id = b.file_id AND a.shared_with_user_id = b.shared_with_user_id;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'file_shares_file_user_key') THEN
+        ALTER TABLE file_shares
+            ADD CONSTRAINT file_shares_file_user_key UNIQUE (file_id, shared_with_user_id);
+    END IF;
+END $$;
+
+-- Index sur les colonnes de recherche (les cles etrangeres PostgreSQL ne sont pas indexees automatiquement).
+CREATE INDEX IF NOT EXISTS files_user_id_idx            ON files (user_id);
+CREATE INDEX IF NOT EXISTS file_shares_shared_with_idx  ON file_shares (shared_with_user_id);
+
+COMMIT;
