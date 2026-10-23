@@ -142,6 +142,20 @@ def get_user_by_username(username: str) -> dict | None:
         return cur.fetchone()
 
 
+def get_user_by_keycloak_id(keycloak_id: str) -> dict | None:
+    """{id, username} du compte actif lié à ce `sub` Keycloak, ou None (inconnu, désactivé ou sub invalide).
+
+    Lecture seule : `core.account_id_by_sub` (SECURITY DEFINER) est la seule façon pour un service de lire le sub.
+    """
+    try:
+        with _session(readonly=True) as cur:
+            cur.execute("SELECT a.id, a.username FROM core.accounts a WHERE a.id = core.account_id_by_sub(%s::uuid)",
+                        (keycloak_id,))
+            return cur.fetchone()
+    except psycopg.errors.InvalidTextRepresentation:  # pas un UUID
+        return None
+
+
 def list_users() -> list[dict]:
     """[{id, username, label}] : `label` = ce qu'affiche le menu « Partager avec »."""
     with _session(readonly=True) as cur:
