@@ -86,7 +86,7 @@ def init_app(app) -> None:
             for t in _REQUIRED:
                 row = conn.execute(
                     "SELECT to_regclass(%s) IS NOT NULL AS ok, "
-                    "COALESCE(has_table_privilege(to_regclass(%s), 'SELECT'), false) AS can_read", (t, t)
+                    "COALESCE(has_any_column_privilege(to_regclass(%s), 'SELECT'), false) AS can_read", (t, t)
                 ).fetchone()
                 if not row["ok"]:
                     problems.append(f"table {t} introuvable (sql/001_schema.sql appliqué ?)")
