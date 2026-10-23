@@ -12,7 +12,7 @@ bp = Blueprint("files", __name__)
 
 # ─── Page principale ─────────────────────────────────────────────────────────
 @bp.route("/")
-@require_auth()
+@require_auth("admin", "FileTransfer-Access")
 def index():
     me = users.current_user()
     return render_template(
@@ -27,7 +27,7 @@ def index():
 
 # ─── Upload / téléchargement ─────────────────────────────────────────────────
 @bp.route("/upload", methods=["POST"])
-@require_auth()
+@require_auth("admin", "FileTransfer-Access")
 def upload():
     if "file" not in request.files:
         return jsonify({"error": "Aucun fichier reçu"}), 400
@@ -42,7 +42,7 @@ def upload():
 
 
 @bp.route("/download/<int:file_id>")
-@require_auth()
+@require_auth("admin", "FileTransfer-Access")
 def download(file_id):
     try:
         decrypted, file = FileService.download(file_id, users.current_user()["id"])
@@ -61,7 +61,7 @@ def download(file_id):
 
 # ─── Partage / retrait ───────────────────────────────────────────────────────
 @bp.route("/share", methods=["POST"])
-@require_auth()
+@require_auth("admin", "FileTransfer-Access")
 def share():
     data = request.get_json(silent=True) or {}
     try:
@@ -94,7 +94,7 @@ def share():
 
 # ─── Suppression ─────────────────────────────────────────────────────────────
 @bp.route("/<int:file_id>", methods=["DELETE"])
-@require_auth()
+@require_auth("admin", "FileTransfer-Access")
 def delete(file_id):
     try:
         FileService.delete(file_id, users.current_user()["id"])
