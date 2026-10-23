@@ -16,3 +16,6 @@ input, select, button { font: inherit; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--surface); border-bottom: 1px solid var(--line); padding: .85rem 1.5rem; }
 .brand { font-family: "Cormorant Garamond", serif; font-size: 1.3rem; font-weight: 600; color: var(--accent); text-decoration: none; }
 .topbar__user { font-size: .85rem; color: var(--muted); }
+.topbar-link { font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); text-decoration: none; transition: color .2s; }
+.topbar-link:hover { color: var(--accent); }
+.topbar-link::before { content: "←"; margin-right: 8px; }

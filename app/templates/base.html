@@ -15,6 +15,9 @@
   <header class="topbar">
     <a class="brand" href="{{ url_for('files.index') }}">🔐 Transfert de fichiers</a>
     {% if current_user %}<span class="topbar__user">{{ current_user.label }}</span>{% endif %}
+    {% if config.HUB_APP_URL %}
+      <a class="topbar-link" href="{{ config.HUB_APP_URL }}">Retour au hub</a>
+    {% endif %}
   </header>
   {% block content %}{% endblock %}
   {% block scripts %}{% endblock %}
